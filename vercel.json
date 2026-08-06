@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "focused-chord-trainer.vercel.app" }],
+      "destination": "https://fretworks.vercel.app/focus",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    { "source": "/focus/(.*)", "destination": "/$1" },
+    { "source": "/focus", "destination": "/" }
+  ]
+}
