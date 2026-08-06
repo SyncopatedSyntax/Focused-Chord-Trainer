@@ -11,7 +11,7 @@
 // schedulable and quizzable, so all of that is gone. Export/import remain, but
 // as backup and interchange rather than as the publishing path.
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import ChordDiagram from '../components/ChordDiagram.jsx';
 import EditableFretboard, { FRET_WINDOW, MAX_WIN_START } from '../components/EditableFretboard.jsx';
 import { playVoicing } from '../lib/audio.js';
@@ -23,6 +23,7 @@ import {
 } from '../data/theory.js';
 import { btn, panel, labelCss, Field, SymbolField } from '../components/ui.jsx';
 import { useIsNarrow } from '../lib/useIsNarrow.js';
+import { identifyChord } from '../lib/naming.js';
 
 const STRINGS = ['E (6th)', 'A (5th)', 'D (4th)', 'G (3rd)', 'B (2nd)', 'e (1st)'];
 const CAT_KEYS = Object.keys(CATS);
@@ -36,7 +37,16 @@ const windowFor = str => {
 };
 
 const slug = s => (s || '').replace(/[^a-z0-9]/gi, '').slice(0, 14) || 'chord';
-const blankDraft = () => ({ id: '', name: '', sym: '', cat: CAT_KEYS[0], movable: false, label: '', str: [-1, -1, -1, -1, -1, -1], rootIdx: null, overrides: {} });
+
+// A new chord starts uncategorised: the voicing technique is a filing decision,
+// not something to demand before the chord can be saved.
+const blankDraft = () => ({
+  id: '', name: '', sym: '', cat: 'unassigned', movable: false, label: '',
+  str: [-1, -1, -1, -1, -1, -1], rootIdx: null, overrides: {},
+  // Name, symbol and id track the shape until the user types over them.
+  // Clearing a field re-arms its flag, so auto-fill resumes.
+  autoName: true, autoSym: true, autoId: true,
+});
 
 // Build the editor draft from an existing chord, preserving its exact degree
 // spellings (e.g. #9, b13) as overrides where they differ from the default.
@@ -47,7 +57,13 @@ function draftFromChord(c) {
   const derived = deriveDegrees(v.str, rootIdx);
   const overrides = {};
   v.deg.forEach((d, i) => { if (d != null && v.str[i] >= 0 && d !== derived[i]) overrides[i] = d; });
-  return { id: c.id, name: c.name, sym: c.sym, cat: c.cat, movable: !!c.movable, label: v.label || '', str: [...v.str], rootIdx, overrides };
+  // An existing chord already carries the names its author chose, so auto-fill
+  // stays off unless a field is cleared.
+  return {
+    id: c.id, name: c.name, sym: c.sym, cat: c.cat || 'unassigned', movable: !!c.movable,
+    label: v.label || '', str: [...v.str], rootIdx, overrides,
+    autoName: false, autoSym: false, autoId: false,
+  };
 }
 
 // `editTarget` arrives when the user tapped Edit on a chord's detail view. App
@@ -87,6 +103,27 @@ export default function BuildTab({ editTarget }) {
     if (!draft) return null;
     return { str: draft.str, deg: finalDeg, sf: computeStartFret(draft.str), label: draft.label };
   }, [draft, finalDeg]);
+
+  // What the shape says the chord is. Null until there is a root and enough
+  // notes to be sure — see lib/naming.js, which would rather say nothing than
+  // guess.
+  const identified = useMemo(
+    () => (draft ? identifyChord(draft.str, finalDeg, draft.rootIdx) : null),
+    [draft?.str, draft?.rootIdx, finalDeg],
+  );
+
+  // Push the identification into whichever fields are still tracking the
+  // shape. Only writes on a real difference, so this settles immediately
+  // rather than looping, and it never overwrites something the user typed.
+  useEffect(() => {
+    if (!draft || !identified) return;
+    const next = {};
+    if (draft.autoName && draft.name !== identified.name) next.name = identified.name;
+    if (draft.autoSym && draft.sym !== identified.sym) next.sym = identified.sym;
+    const nextName = next.name ?? draft.name;
+    if (draft.autoId && !editingId.current && draft.id !== slug(nextName)) next.id = slug(nextName);
+    if (Object.keys(next).length) setDraft(d => ({ ...d, ...next }));
+  }, [identified, draft]);
 
   // Strings whose interval has more than one legitimate spelling. Previously
   // every string carried a degree cell that was usually just a read-only chip;
@@ -308,8 +345,16 @@ export default function BuildTab({ editTarget }) {
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 {/* Metadata fields */}
                 <div style={{ flex: 1, minWidth: narrow ? '100%' : '240px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <Field label="Name" value={draft.name} onChange={v => patch(editingId.current || draft.id ? { name: v } : { name: v, id: slug(v) })} placeholder="e.g. C Major" />
-                  <SymbolField label="Symbol" value={draft.sym} onChange={v => patch({ sym: v })} placeholder="e.g. C, m7, CΔ9" />
+                  {/* Typing takes a field off auto; clearing it puts it back. */}
+                  <Field label="Name" value={draft.name}
+                    onChange={v => patch({
+                      name: v, autoName: v.trim() === '',
+                      ...(draft.autoId && !editingId.current ? { id: slug(v) } : {}),
+                    })}
+                    placeholder="e.g. C Major" />
+                  <SymbolField label="Symbol" value={draft.sym}
+                    onChange={v => patch({ sym: v, autoSym: v.trim() === '' })}
+                    placeholder="e.g. C, m7, CΔ9" />
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={labelCss}>Category</div>
@@ -322,8 +367,8 @@ export default function BuildTab({ editTarget }) {
                     </label>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}><Field label="id (unique)" value={draft.id} onChange={v => patch({ id: v })} placeholder={slug(draft.name)} mono /></div>
-                    <button onClick={() => patch({ id: slug(draft.name) })} style={btn(false)}>Auto-id</button>
+                    <div style={{ flex: 1 }}><Field label="id (unique)" value={draft.id} onChange={v => patch({ id: v, autoId: v.trim() === '' })} placeholder={slug(draft.name)} mono /></div>
+                    <button onClick={() => patch({ id: slug(draft.name), autoId: true })} style={btn(false)}>Auto-id</button>
                   </div>
                   <Field label="Voicing label (optional)" value={draft.label} onChange={v => patch({ label: v })} placeholder="e.g. Open, 6th-str root" />
                   <div style={{ fontSize: '11px', color: '#888' }}>Start fret (auto): <b style={{ color: '#4ecdc4' }}>{computeStartFret(draft.str)}</b></div>

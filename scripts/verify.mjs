@@ -10,8 +10,9 @@
 
 import {
   deriveDegrees, validateVoicing, computeStartFret, pitchClassAt,
-  DEGREE_SEMITONE, DEGREE_ALTS,
+  DEGREE_SEMITONE, DEGREE_ALTS, CATS,
 } from '../data/theory.js';
+import { identifyChord } from '../lib/naming.js';
 
 let failures = 0;
 const check = (name, fn) => {
@@ -121,6 +122,54 @@ check('pitchClassAt matches standard tuning', () => {
   eq(pitchClassAt(1, 3), 0, 'A string 3rd fret is C');
   eq(pitchClassAt(5, 0), 4, 'high e open is E');
   eq(pitchClassAt(0, -1), null, 'muted has no pitch');
+});
+
+// ── lib/naming.js ──────────────────────────────────────────────────────────
+// The Build tab pre-fills name and symbol from the shape, so a wrong entry
+// here mislabels a chord that is otherwise correct. Every case below derives
+// its degrees through deriveDegrees rather than hand-writing them, so these
+// assert the whole path from frets to chord name.
+console.log('\nlib/naming.js');
+
+const nameOf = (str, rootIdx, overrides = {}) => {
+  const deg = deriveDegrees(str, rootIdx).map((d, i) => (overrides[i] != null && str[i] >= 0 ? overrides[i] : d));
+  return identifyChord(str, deg, rootIdx);
+};
+
+check('open triads', () => {
+  eq(nameOf([-1, 3, 2, 0, 1, 0], 1), { name: 'C Major', sym: 'C' }, 'C major');
+  eq(nameOf([0, 2, 2, 0, 0, 0], 0), { name: 'E Minor', sym: 'Em' }, 'E minor');
+  eq(nameOf([-1, 0, 2, 2, 1, 0], 1), { name: 'A Minor', sym: 'Am' }, 'A minor');
+});
+
+check('sevenths, including shell voicings with no 5th', () => {
+  eq(nameOf([3, 2, 0, 0, 0, 1], 0), { name: 'G7', sym: 'G7' }, 'G7 open');
+  eq(nameOf([-1, 3, 2, 0, 0, 0], 1), { name: 'Cmaj7', sym: 'Cmaj7' }, 'Cmaj7 open');
+  eq(nameOf([-1, 0, 2, 0, 1, 0], 1), { name: 'Am7', sym: 'Am7' }, 'Am7 open');
+  // Shell: root, 3rd, b7 only — the 5th is dropped, which must not stop it.
+  eq(nameOf([8, -1, 8, 9, -1, -1], 0), { name: 'C7', sym: 'C7' }, 'C7 shell');
+  eq(nameOf([8, -1, 9, 9, -1, -1], 0), { name: 'Cmaj7', sym: 'Cmaj7' }, 'Cmaj7 shell');
+});
+
+check('sus, power and altered', () => {
+  eq(nameOf([-1, -1, 0, 2, 3, 3], 2), { name: 'Dsus4', sym: 'Dsus4' }, 'Dsus4');
+  eq(nameOf([-1, -1, 0, 2, 3, 0], 2), { name: 'Dsus2', sym: 'Dsus2' }, 'Dsus2');
+  eq(nameOf([0, 2, 2, -1, -1, -1], 0), { name: 'E5', sym: 'E5' }, 'E5 power chord');
+  // The starter chord: #9 is a spelling override, and it is what makes this
+  // 7#5#9 rather than anything else.
+  eq(nameOf([-1, 5, 4, 5, 6, 6], 1, { 4: '#9' }), { name: 'D7#5#9', sym: 'D7#5#9' }, 'D7#5#9');
+});
+
+check('declines to name what it cannot identify', () => {
+  eq(nameOf([-1, 3, -1, -1, -1, -1], 1), null, 'a lone root');
+  eq(nameOf([-1, -1, -1, -1, -1, -1], null), null, 'an empty shape');
+  eq(nameOf([-1, 3, 2, 0, 1, 0], null), null, 'no root marked');
+  eq(nameOf([0, 1, 2, 3, 4, 5], 0), null, 'a shape that is not a chord');
+});
+
+check('the unassigned category exists and leads the list', () => {
+  if (!CATS.unassigned) throw new Error('CATS.unassigned is missing — new chords default to it');
+  eq(Object.keys(CATS)[0], 'unassigned', 'unassigned should head the dropdown');
 });
 
 console.log(failures === 0 ? '\nAll checks passed.\n' : `\n${failures} check(s) failed.\n`);

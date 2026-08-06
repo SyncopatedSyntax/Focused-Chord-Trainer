@@ -17,7 +17,20 @@ export const DC = {
 };
 
 // Voicing-technique categories (label + accent colour).
+//
+// `unassigned` is this app's one deliberate divergence from Chord Trainer's
+// copy of this module. There the categories are curated by hand before the
+// data ships; here the user builds the library, and a voicing technique is not
+// something they should have to declare to save a chord — so a new chord
+// starts uncategorised and can be filed later.
+//
+// It has to be a real entry rather than an empty `cat`, because LibraryTab and
+// QuizTab build their category strips from `Object.keys(CATS)` and QuizTab
+// seeds its filter with that same set. A cat outside this map would quietly
+// drop those chords out of the quiz pool once the library grew past
+// MIN_CHORDS. Listed first so it heads the dropdown as the default.
 export const CATS = {
+  unassigned: { label: 'Unassigned',   color: '#8a88a0' },
   cowboy:  { label: 'Cowboy Chords',   color: '#74b9ff' },
   triad:   { label: 'Movable Triads',  color: '#ffd93d' },
   barre:   { label: 'Barre Chords',    color: '#ff6b6b' },

@@ -109,6 +109,27 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
     touch minimum. `LM` (left gutter) must clear the word "root", which is
     wider than the two-digit fret numbers.
 
+  **Name, symbol and id pre-fill from the shape.** `lib/naming.js`'s
+  `identifyChord()` reads the derived degree set and returns the chord's name
+  and symbol, so a built shape names itself the moment it is identifiable
+  (root + a third is usually enough). Two normalisations make the table cover
+  real voicings: the perfect 5th is dropped before matching, since guitarists
+  omit it and it never changes the name; and matching is on degree *labels*,
+  not pitch, because the user's ♭3-vs-♯9 choice is what distinguishes an
+  altered dominant. Anything not on the table returns `null` and the fields
+  stay blank — a wrong auto-name is worse than none. Symbols follow Chord
+  Trainer's `chords.json` house style: ASCII with the root included (`Cmaj7`,
+  `Em7`, `E7#9`, `A5`), and `name` spells out only "C Major"/"C Minor".
+  - Each field carries an `autoName`/`autoSym`/`autoId` flag. Typing clears the
+    flag so the shape stops overwriting you; **clearing the field re-arms it**.
+    Opening an existing chord starts with all three off.
+  - New chords default to `cat: 'unassigned'`, which is a real entry in `CATS`
+    rather than an empty string. It has to be: `LibraryTab` and `QuizTab` build
+    their category strips from `Object.keys(CATS)`, and QuizTab seeds its
+    filter with that set, so a cat outside the map would silently drop those
+    chords out of the quiz pool once the library passed `MIN_CHORDS`. This is
+    the one deliberate divergence from Chord Trainer's copy of `theory.js`.
+
   The **Symbol** field has its own keypad (`SymbolField` in `components/ui.jsx`)
   because Δ, ø and ° are absent from the iOS keyboard and ♭/♯ are effectively
   unreachable. Insertion is caret-aware rather than append-only, and each chip
