@@ -110,6 +110,14 @@ when `toolByKey('focus')` is undefined. **Keep `lib/tool.js` in sync with
 `fretworks-design/src/tools.js`.** The shell also needs `/focus` in its
 `vercel.json` rewrites and in `public/sw.js`'s `ZONE_RE`.
 
+`@fretworks/design` is a git dep **pinned to an exact commit** in every
+consumer's `package-lock.json`, and Vercel builds from the lockfile — so merging
+a change to that package changes nothing in any deployed app until each of the
+eight consumers is repinned (`npm install @fretworks/design@github:SyncopatedSyntax/fretworks-design`).
+It fails quietly: the build passes and the new thing just isn't there.
+`docs/fretworks-rollout.md` has the full sequence for shipping a toolbox-wide
+change, and tracks which sibling apps are still on the old pin.
+
 ## Before shipping any change
 
 - `npm run build` must pass.
