@@ -21,6 +21,7 @@ import {
   deriveDegrees, computeStartFret, validateVoicing,
 } from '../data/theory.js';
 import { btn, panel, labelCss, Field } from '../components/ui.jsx';
+import { useIsNarrow } from '../lib/useIsNarrow.js';
 
 const STRINGS = ['E (6th)', 'A (5th)', 'D (4th)', 'G (3rd)', 'B (2nd)', 'e (1st)'];
 const FRETS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -56,6 +57,12 @@ export default function BuildTab({ editTarget }) {
   const importRef = useRef(null);
   const editingId = useRef(editTarget ? editTarget.id : null); // id being edited (null = adding)
 
+  const narrow = useIsNarrow();
+  // On a phone the list and the editor can't sit side by side, and stacking
+  // them buries the form under a scroll of chords. So the two become views:
+  // the editor takes the screen, with the list one tap away.
+  const [showList, setShowList] = useState(false);
+
   const flash = m => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
   // ── Derived degree array for the current draft ──────────────────────────
@@ -83,10 +90,11 @@ export default function BuildTab({ editTarget }) {
   }, [draft, draftVoicing, chords]);
 
   // ── Draft actions ───────────────────────────────────────────────────────
-  const startNew = () => { editingId.current = null; setDraft(blankDraft()); };
-  const startEdit = c => { editingId.current = c.id; setDraft(draftFromChord(c)); };
-  const startDuplicate = c => { editingId.current = null; const d = draftFromChord(c); d.id = ''; d.name = c.name + ' copy'; setDraft(d); };
-  const cancel = () => { editingId.current = null; setDraft(null); };
+  // Each of these opens the editor, so on narrow they also leave the list.
+  const startNew = () => { editingId.current = null; setDraft(blankDraft()); setShowList(false); };
+  const startEdit = c => { editingId.current = c.id; setDraft(draftFromChord(c)); setShowList(false); };
+  const startDuplicate = c => { editingId.current = null; const d = draftFromChord(c); d.id = ''; d.name = c.name + ' copy'; setDraft(d); setShowList(false); };
+  const cancel = () => { editingId.current = null; setDraft(null); setShowList(false); };
 
   const setStr = (i, fret) => setDraft(d => {
     const str = [...d.str]; str[i] = fret;
@@ -113,6 +121,7 @@ export default function BuildTab({ editTarget }) {
     if (wasEditing) update(wasEditing, chord); else add(chord);
     editingId.current = null;
     setDraft(null);
+    setShowList(false);
     flash(wasEditing ? `Updated ${chord.name} ✓` : `Added ${chord.name} — it's in your practice rotation now ✓`);
   };
 
@@ -142,26 +151,47 @@ export default function BuildTab({ editTarget }) {
     return r;
   }, [chords, catFilter, search]);
 
+  // On a phone the two panes become two views; on a wide screen both show.
+  const listVisible = !narrow || !draft || showList;
+  const editorVisible = !!draft && (!narrow || !showList);
+
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '14px' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: narrow ? '12px 10px' : '14px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-        <div style={{ fontSize: '17px', fontWeight: 900, color: '#fff' }}>✏️ Build your library</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+        <div style={{ fontSize: narrow ? '15px' : '17px', fontWeight: 900, color: '#fff' }}>✏️ Build your library</div>
         <span style={{ fontSize: '11px', color: '#888' }}>{chords.length} chord{chords.length === 1 ? '' : 's'}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <button onClick={() => exportChords(chords)} disabled={chords.length === 0} style={{ ...btn(false, '#a29bfe'), opacity: chords.length ? 1 : 0.4 }}>Export chords.json</button>
+          <button onClick={() => exportChords(chords)} disabled={chords.length === 0} style={{ ...btn(false, '#a29bfe'), opacity: chords.length ? 1 : 0.4 }}>{narrow ? 'Export' : 'Export chords.json'}</button>
           <button onClick={() => importRef.current?.click()} style={btn(false, '#4ecdc4')}>Import</button>
           <input ref={importRef} type="file" accept=".json" onChange={importFile} style={{ display: 'none' }} />
         </div>
       </div>
       {msg && <div style={{ background: '#4ecdc418', border: '1px solid #4ecdc444', color: '#4ecdc4', borderRadius: '9px', padding: '8px 12px', marginBottom: '12px', fontSize: '12px', fontWeight: 600 }}>{msg}</div>}
-      <div style={{ fontSize: '11px', color: '#666', marginBottom: '12px', lineHeight: 1.5 }}>
-        Chords save to this device the moment you add them — nothing to publish. Scale degrees derive from the shape you build, so a wrong note can't be saved with a right-sounding label. Back the library up from <b>Settings</b>, or export it as a <code style={{ fontFamily: 'monospace', color: '#4ecdc4' }}>chords.json</code> that Chord Trainer can read.
-      </div>
+      {!narrow && (
+        <div style={{ fontSize: '11px', color: '#666', marginBottom: '12px', lineHeight: 1.5 }}>
+          Chords save to this device the moment you add them — nothing to publish. Scale degrees derive from the shape you build, so a wrong note can't be saved with a right-sounding label. Back the library up from <b>Settings</b>, or export it as a <code style={{ fontFamily: 'monospace', color: '#4ecdc4' }}>chords.json</code> that Chord Trainer can read.
+        </div>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: draft ? 'minmax(240px, 300px) 1fr' : '1fr', gap: '14px', alignItems: 'start' }}>
+      {/* Switch back to the list without discarding the draft. */}
+      {narrow && editorVisible && (
+        <button onClick={() => setShowList(true)} style={{ ...btn(false), width: '100%', marginBottom: '10px', padding: '9px' }}>
+          ☰ Browse chords ({chords.length})
+        </button>
+      )}
+
+      {/* minmax(0, 1fr), not 1fr: a 1fr track's automatic minimum is min-content,
+          so the editor column would grow to fit the widest fret strip and push
+          the layout past the viewport instead of letting the strip scroll. */}
+      <div style={{ display: 'grid', gridTemplateColumns: !narrow && draft ? 'minmax(240px, 300px) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '14px', alignItems: 'start' }}>
         {/* List */}
-        <div style={panel}>
+        <div style={{ ...panel, display: listVisible ? 'block' : 'none' }}>
+          {narrow && draft && showList && (
+            <button onClick={() => setShowList(false)} style={{ ...btn(false, '#4ecdc4'), width: '100%', marginBottom: '8px', padding: '9px' }}>
+              ← Back to {editingId.current ? 'editing' : 'your new chord'}
+            </button>
+          )}
           <button onClick={startNew} style={{ ...btn(true), width: '100%', marginBottom: '10px', padding: '9px' }}>+ New chord</button>
           {chords.length > 0 && (<>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: '100%', background: '#0f0e17', border: '1px solid #2a2840', borderRadius: '8px', padding: '7px 10px', color: '#fff', fontSize: '13px', marginBottom: '8px', outline: 'none' }} />
@@ -184,20 +214,20 @@ export default function BuildTab({ editTarget }) {
                 <button title="Delete" onClick={() => del(c)} style={{ ...btn(false, '#ff6363'), minHeight: '26px', padding: '3px 7px', fontSize: '11px' }}>✕</button>
               </div>
             ))}
-            {chords.length === 0 && <div style={{ color: '#666', fontSize: '12px', textAlign: 'center', padding: '20px', lineHeight: 1.6 }}>No chords yet.<br />Build one on the right →</div>}
+            {chords.length === 0 && <div style={{ color: '#666', fontSize: '12px', textAlign: 'center', padding: '20px', lineHeight: 1.6 }}>No chords yet.<br />{narrow ? 'Tap + New chord to start.' : 'Build one on the right →'}</div>}
             {chords.length > 0 && filtered.length === 0 && <div style={{ color: '#666', fontSize: '12px', textAlign: 'center', padding: '20px' }}>No chords match.</div>}
           </div>
         </div>
 
         {/* Editor form */}
-        {draft && (
+        {editorVisible && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={panel}>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: narrow ? 'center' : 'flex-start' }}>
                 {/* Live preview */}
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ background: '#0f0e17', borderRadius: '10px', padding: '12px', border: '1px solid #2a2840' }}>
-                    <ChordDiagram v={draftVoicing} showDeg size={1.7} />
+                    <ChordDiagram v={draftVoicing} showDeg size={narrow ? 1.45 : 1.7} />
                   </div>
                   <div style={{ display: 'flex', gap: '5px', marginTop: '8px', justifyContent: 'center' }}>
                     <button onClick={() => playVoicing(draftVoicing, 'strum')} style={btn(false)}>♬ Strum</button>
@@ -205,7 +235,7 @@ export default function BuildTab({ editTarget }) {
                   </div>
                 </div>
                 {/* Metadata fields */}
-                <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ flex: 1, minWidth: narrow ? '100%' : '240px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <Field label="Name" value={draft.name} onChange={v => patch(editingId.current || draft.id ? { name: v } : { name: v, id: slug(v) })} placeholder="e.g. C Major" />
                   <Field label="Symbol" value={draft.sym} onChange={v => patch({ sym: v })} placeholder="e.g. C, m7, Δ" />
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -245,25 +275,66 @@ export default function BuildTab({ editTarget }) {
                     const interval = ((pc - rootPc) % 12 + 12) % 12;
                     opts = DEGREE_ALTS[interval] || null;
                   }
+                  // The degree readout: a chip, or a dropdown where the interval
+                  // has more than one legitimate spelling.
+                  const degCell = fret < 0
+                    ? <span style={{ color: '#555', fontSize: '11px' }}>muted</span>
+                    : opts && opts.length > 1
+                      ? <select value={deg} onChange={e => setOverride(i, e.target.value)} style={{ background: (DC[deg] || '#888') + '22', color: DC[deg] || '#fff', border: `1px solid ${DC[deg] || '#2a2840'}`, borderRadius: '7px', padding: narrow ? '5px 6px' : '3px 6px', fontSize: '12px', fontWeight: 700 }}>
+                          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      : <span style={{ background: (DC[deg] || '#888') + '22', color: DC[deg] || '#888', border: `1px solid ${(DC[deg] || '#2a2840')}66`, borderRadius: '7px', padding: '3px 8px', fontSize: '12px', fontWeight: 700 }}>{deg || '—'}</span>;
+
+                  // The fret picker. Sixteen buttons never fit a phone: wrapping
+                  // them turns each string into a three-line block and the six
+                  // rows stop reading as a fretboard. Scrolling the strip
+                  // sideways keeps one string to one line, and the row still
+                  // starts at the nut so the common frets need no scrolling.
+                  const fretStrip = (
+                    <div className="fct-fretstrip" style={{
+                      display: 'flex', gap: narrow ? '4px' : '3px', flex: narrow ? 'none' : 1,
+                      flexWrap: narrow ? 'nowrap' : 'wrap',
+                      overflowX: narrow ? 'auto' : 'visible',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      padding: narrow ? '2px 0' : 0,
+                    }}>
+                      {FRETS.map(f => (
+                        <button key={f} onClick={() => setStr(i, f)} style={{
+                          ...btn(fret === f, f === -1 ? '#e74c3c' : '#74b9ff'),
+                          minWidth: narrow ? '34px' : '26px',
+                          minHeight: narrow ? '38px' : '32px',
+                          padding: '4px 6px',
+                          flexShrink: 0,
+                        }}>
+                          {f === -1 ? '✕' : f}
+                        </button>
+                      ))}
+                    </div>
+                  );
+
+                  // Narrow stacks the identity row above the fret strip; wide
+                  // keeps everything on one line.
+                  if (narrow) return (
+                    <div key={i} style={{ borderBottom: '1px solid #1a1928', paddingBottom: '6px', marginBottom: '2px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                        <div style={{ fontSize: '11px', color: '#bbb', fontWeight: 700, flexShrink: 0 }}>{sName}</div>
+                        <button onClick={() => setRoot(i)} disabled={fret < 0} title="Mark as root"
+                          style={{ ...btn(isRoot, '#ff4757'), minWidth: '34px', minHeight: '32px', opacity: fret < 0 ? 0.3 : 1 }}>R</button>
+                        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>{degCell}</div>
+                      </div>
+                      {fretStrip}
+                    </div>
+                  );
+
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #1a1928', paddingBottom: '4px' }}>
                       <div style={{ width: '54px', fontSize: '11px', color: '#bbb', fontWeight: 700, flexShrink: 0 }}>{sName}</div>
                       <button onClick={() => setRoot(i)} disabled={fret < 0} title="Mark as root"
                         style={{ ...btn(isRoot, '#ff4757'), minWidth: '30px', opacity: fret < 0 ? 0.3 : 1 }}>R</button>
-                      <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', flex: 1 }}>
-                        {FRETS.map(f => (
-                          <button key={f} onClick={() => setStr(i, f)} style={{ ...btn(fret === f, f === -1 ? '#e74c3c' : '#74b9ff'), minWidth: '26px', padding: '4px 6px' }}>
-                            {f === -1 ? '✕' : f}
-                          </button>
-                        ))}
-                      </div>
+                      {fretStrip}
                       <div style={{ width: '78px', flexShrink: 0, textAlign: 'right' }}>
-                        {fret < 0 ? <span style={{ color: '#555', fontSize: '11px' }}>muted</span>
-                          : opts && opts.length > 1
-                            ? <select value={deg} onChange={e => setOverride(i, e.target.value)} style={{ background: (DC[deg] || '#888') + '22', color: DC[deg] || '#fff', border: `1px solid ${DC[deg] || '#2a2840'}`, borderRadius: '7px', padding: '3px 6px', fontSize: '12px', fontWeight: 700 }}>
-                              {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
-                            : <span style={{ background: (DC[deg] || '#888') + '22', color: DC[deg] || '#888', border: `1px solid ${(DC[deg] || '#2a2840')}66`, borderRadius: '7px', padding: '3px 8px', fontSize: '12px', fontWeight: 700 }}>{deg || '—'}</span>}
+                        {degCell}
                       </div>
                     </div>
                   );
@@ -280,10 +351,10 @@ export default function BuildTab({ editTarget }) {
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={save} disabled={draftErrors.length > 0} style={{ ...btn(true, '#00b894'), opacity: draftErrors.length ? 0.4 : 1, padding: '10px 20px', cursor: draftErrors.length ? 'not-allowed' : 'pointer' }}>
+              <button onClick={save} disabled={draftErrors.length > 0} style={{ ...btn(true, '#00b894'), opacity: draftErrors.length ? 0.4 : 1, padding: '10px 20px', minHeight: narrow ? '46px' : undefined, flex: narrow ? 1 : 'none', cursor: draftErrors.length ? 'not-allowed' : 'pointer' }}>
                 {editingId.current ? 'Update chord' : 'Add chord'}
               </button>
-              <button onClick={cancel} style={{ ...btn(false), padding: '10px 18px' }}>Cancel</button>
+              <button onClick={cancel} style={{ ...btn(false), padding: '10px 18px', minHeight: narrow ? '46px' : undefined }}>Cancel</button>
             </div>
           </div>
         )}

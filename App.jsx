@@ -103,6 +103,10 @@ export default function App() {
       :root{--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom);}
       @keyframes fct-spin{to{transform:rotate(360deg);}}
       .fct-spin{display:inline-block;animation:fct-spin .8s linear infinite;}
+      /* Build tab's per-string fret picker scrolls sideways on phones; the
+         scrollbar would eat a row of its already-tight height. WebKit only
+         honours this as a real rule, not an inline style. */
+      .fct-fretstrip::-webkit-scrollbar{display:none;}
     `;
     document.head.appendChild(style);
 

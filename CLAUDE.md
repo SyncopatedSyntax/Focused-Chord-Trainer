@@ -18,14 +18,22 @@ Single dev + end user: Zak.
 
 Chord Trainer imports `data/chords.json` at module scope; its editor writes that
 file, which you commit and redeploy. Here the library is the **user's**, lives in
-`localStorage`, starts **empty**, and is edited in-app — so a chord saved in the
-Build tab is schedulable and quizzable on the next render.
+`localStorage`, and is edited in-app — so a chord saved in the Build tab is
+schedulable and quizzable on the next render.
 
 Consequently there is no module-level `CHORDS` constant. Everything reads the
 list from `lib/ChordsContext.jsx`, and the selectors in `lib/srs.js`
 (`getDailyChords`, `getWeakChords`, `getWeakDegrees`) take `chords` as their
 first argument rather than closing over an import. **Never reintroduce a
 static chord import** — it would silently shadow the user's library.
+
+`data/starter.js` is the one file that looks like it breaks that rule and does
+not. It is a **seed**, not a shipped set: `loadChords()` copies it into storage
+exactly once, on the first run of a browser that has never been seeded, and it
+is the user's from that moment — editable, deletable, never rewritten. The
+`fct_seeded` key is what makes deletion stick; without it an empty library and a
+never-seeded one are indistinguishable and the starter would resurrect on every
+load. Nothing else may import `STARTER_CHORDS`.
 
 ## Storage
 
@@ -34,6 +42,7 @@ Every key is namespaced `fct_`, which is load-bearing: `ProgressBackup` from
 library *and* the progress with no per-tool wiring.
 
 - `fct_chords` — the library (array, same shape as Chord Trainer's chords.json)
+- `fct_seeded` — set once the starter chord has been offered; see above
 - `fct_srs` — SM-2 schedule · `fct_hist` — quiz history · `fct_degh` — degree
   quiz results · `fct_mastered` — manually retired chords
 - `fct_launches`, `fct_audio_hint_launch*` — audio-hint suppression counters
@@ -66,6 +75,15 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
 - **Build** ✏️ — the chord editor, ported from Chord Trainer's
   `editor/Editor.jsx`. Writes to the context, not to a file. Also exports and
   imports `chords.json` for interchange with Chord Trainer.
+  Its upstream is a **desktop** editor, so it is the one tab that needed real
+  responsive work (`lib/useIsNarrow.js`, 720px). Below that width the list and
+  the editor become two views rather than two columns, and each string's 16
+  fret buttons scroll sideways instead of wrapping into a three-line block.
+  The grid uses `minmax(0, 1fr)`, not `1fr` — a `1fr` track's automatic minimum
+  is `min-content`, so the column grows to fit the widest fret strip and the
+  strip never scrolls. That regression is invisible to a
+  `document.documentElement.scrollWidth` check, because the overflow happens
+  inside App's scroll container; measure that element instead.
 - **Quiz** 🎯 — Name↔Shape and the Scale Degree trainer. Gated below 4 chords;
   the Scale Degree tier picker dims degrees no chord in the library contains.
 - **Weak** 💪 — misses and low ease factors, with a scoped drill.

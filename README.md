@@ -5,6 +5,10 @@ on a visual fretboard, and it immediately joins a spaced-repetition schedule and
 the quizzes. No preloaded 200-chord set to wade through — just the chords you're
 actually working on.
 
+It ships with exactly one chord, a **D7♯5♯9** with its root on the A string, so
+the app opens with something to look at rather than six empty panels. Delete it
+whenever you like; it won't come back.
+
 A leaner sibling of [Chord Trainer](https://github.com/SyncopatedSyntax/Chord-Trainer),
 and the second chord-vocabulary tool in the **Fretworks** toolbox.
 
@@ -77,6 +81,7 @@ pwa.js                In-app "Update" helper (the shell owns the service worker)
 
 data/
   theory.js           Degree maths, derivation, validation — lifted from Chord Trainer
+  starter.js          The one chord seeded into a fresh library
 components/
   ChordDiagram.jsx    Fretboard SVG
   ClickableDiagram.jsx  Tappable variant, for the Scale Degree quiz
@@ -91,6 +96,7 @@ lib/
   srs.js              SM-2 + daily/weak selectors
   audio.js            Pluck synthesis + the two-layer iOS silent-switch fix
   voicing.js          Root detection + transposition
+  useIsNarrow.js      Phone-width check for the Build tab's layout
   tool.js             This app's Fretworks registry descriptor
 tabs/
   TodayTab.jsx  LibraryTab.jsx  BuildTab.jsx  QuizTab.jsx  WeakTab.jsx  SettingsTab.jsx
