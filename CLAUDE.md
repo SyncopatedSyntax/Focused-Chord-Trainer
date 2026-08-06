@@ -77,13 +77,43 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
   imports `chords.json` for interchange with Chord Trainer.
   Its upstream is a **desktop** editor, so it is the one tab that needed real
   responsive work (`lib/useIsNarrow.js`, 720px). Below that width the list and
-  the editor become two views rather than two columns, and each string's 16
-  fret buttons scroll sideways instead of wrapping into a three-line block.
-  The grid uses `minmax(0, 1fr)`, not `1fr` — a `1fr` track's automatic minimum
-  is `min-content`, so the column grows to fit the widest fret strip and the
-  strip never scrolls. That regression is invisible to a
+  the editor become two views rather than two columns. The grid uses
+  `minmax(0, 1fr)`, not `1fr` — a `1fr` track's automatic minimum is
+  `min-content`, so a wide child would stretch the column past the viewport
+  instead of being constrained by it. That regression is invisible to a
   `document.documentElement.scrollWidth` check, because the overflow happens
   inside App's scroll container; measure that element instead.
+
+  **The shape is entered by tapping the diagram** —
+  `components/EditableFretboard.jsx`. It replaced six rows of sixteen fret
+  buttons, which worked but pushed the live preview off the top of a phone
+  screen: you could not see the shape while entering it. The diagram is now the
+  control, so the shape and the means of changing it cannot drift apart, and
+  the shape panel sits **above** the metadata for the same reason. Interaction:
+  tap a cell to fret that string (tapping the same cell again mutes it), tap
+  the marker above a string to toggle open/muted, tap the **R** row under the
+  grid to mark the root. Degrees render inside the dots, so the only per-string
+  control left is a spelling `<select>` for the genuinely ambiguous intervals
+  (`DEGREE_ALTS`) — previously every string carried a mostly read-only chip.
+  - Six frets show at once; `winStart` lives in `BuildTab` (not the board) so
+    opening a chord can aim the window at it via `windowFor()`. Notes outside
+    the window render as dashed ghosts labelled with their real fret, so a
+    shape is never silently half-invisible.
+  - **`App.jsx` sets `svg{pointer-events:none}` globally**, re-enabled only for
+    elements with an inline `cursor` style. React's `onClick` attaches by
+    delegation and emits no `onclick` attribute, so the rule's `svg [onclick]`
+    half never matches a React handler. **Every tappable SVG node needs its own
+    inline `cursor`** or the tap silently does nothing. `ClickableDiagram` has
+    always depended on this too.
+  - Geometry is sized so a cell is ~45×52 CSS px at 393px width — past the 44px
+    touch minimum. `LM` (left gutter) must clear the word "root", which is
+    wider than the two-digit fret numbers.
+
+  The **Symbol** field has its own keypad (`SymbolField` in `components/ui.jsx`)
+  because Δ, ø and ° are absent from the iOS keyboard and ♭/♯ are effectively
+  unreachable. Insertion is caret-aware rather than append-only, and each chip
+  cancels the pointerdown that would otherwise blur the input — without that,
+  iOS closes the keyboard and drops the caret on every tap.
 - **Quiz** 🎯 — Name↔Shape and the Scale Degree trainer. Gated below 4 chords;
   the Scale Degree tier picker dims degrees no chord in the library contains.
 - **Weak** 💪 — misses and low ease factors, with a scoped drill.

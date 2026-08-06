@@ -1,3 +1,5 @@
+import { useRef, useEffect } from 'react';
+
 // Small shared UI primitives, lifted from Chord Trainer's editor/ui.jsx so the
 // Build tab looks identical to the editor it came from. The `Step`/`code`
 // helpers are not carried over — they existed only for the "How to publish"
@@ -25,6 +27,69 @@ export function Field({ label, value, onChange, placeholder, mono }) {
       <div style={labelCss}>{label}</div>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         style={{ width: '100%', background: '#0f0e17', border: '1px solid #2a2840', borderRadius: '8px', padding: '8px 10px', color: '#fff', fontSize: '13px', outline: 'none', fontFamily: mono ? 'monospace' : 'inherit' }} />
+    </div>
+  );
+}
+
+// Chord symbols need glyphs no phone keyboard offers — Δ, ø and ° are not on
+// the iOS keyboard at all, and ♭/♯ are buried behind a long-press that yields
+// the wrong characters. So the field carries its own keypad.
+//
+// Row one is those glyphs; row two is whole suffixes, which are typeable but
+// tedious. Insertion respects the caret rather than appending, so a symbol can
+// be built left to right (C → Δ → 9). Each chip cancels the pointerdown that
+// would blur the input: without that, iOS dismisses the keyboard on every tap
+// and the caret is lost.
+const SYMBOL_GLYPHS = ['Δ', 'ø', '°', '♭', '♯', '+', '−'];
+const SYMBOL_SUFFIXES = ['maj7', 'm7', '7', 'sus4', 'add9'];
+
+export function SymbolField({ label, value, onChange, placeholder }) {
+  const inputRef = useRef(null);
+  const caretRef = useRef(null);
+
+  // Restore the caret after React commits the new value; setting it inside the
+  // click handler would be undone by the controlled re-render.
+  useEffect(() => {
+    if (caretRef.current != null && inputRef.current) {
+      inputRef.current.setSelectionRange(caretRef.current, caretRef.current);
+      caretRef.current = null;
+    }
+  });
+
+  const insert = text => {
+    const el = inputRef.current;
+    const start = el && el.selectionStart != null ? el.selectionStart : value.length;
+    const end = el && el.selectionEnd != null ? el.selectionEnd : value.length;
+    onChange(value.slice(0, start) + text + value.slice(end));
+    caretRef.current = start + text.length;
+    if (el) el.focus();
+  };
+
+  const chip = (extra = {}) => ({
+    padding: '6px 9px', borderRadius: '7px', cursor: 'pointer', fontWeight: 700,
+    border: '1px solid #2a2840', background: '#0f0e17', color: '#cfcde0',
+    minHeight: '36px', minWidth: '34px', touchAction: 'manipulation', ...extra,
+  });
+
+  return (
+    <div>
+      <div style={labelCss}>{label}</div>
+      <input ref={inputRef} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: '100%', background: '#0f0e17', border: '1px solid #2a2840', borderRadius: '8px', padding: '8px 10px', color: '#fff', fontSize: '13px', outline: 'none' }} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '6px' }}>
+        {SYMBOL_GLYPHS.map(s => (
+          <button key={s} type="button" onMouseDown={e => e.preventDefault()} onClick={() => insert(s)}
+            style={chip({ fontSize: '15px', color: '#4ecdc4', borderColor: '#4ecdc444' })}>{s}</button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '5px' }}>
+        {SYMBOL_SUFFIXES.map(s => (
+          <button key={s} type="button" onMouseDown={e => e.preventDefault()} onClick={() => insert(s)}
+            style={chip({ fontSize: '12px' })}>{s}</button>
+        ))}
+        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => { onChange(''); caretRef.current = 0; inputRef.current?.focus(); }}
+          style={chip({ fontSize: '12px', color: '#ff8f8f', borderColor: '#ff636344', marginLeft: 'auto' })}>clear</button>
+      </div>
     </div>
   );
 }

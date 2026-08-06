@@ -13,6 +13,7 @@
 
 import { useState, useMemo, useRef } from 'react';
 import ChordDiagram from '../components/ChordDiagram.jsx';
+import EditableFretboard, { FRET_WINDOW, MAX_WIN_START } from '../components/EditableFretboard.jsx';
 import { playVoicing } from '../lib/audio.js';
 import { useChords } from '../lib/ChordsContext.jsx';
 import { exportChords, readChordsFile } from '../lib/library.js';
@@ -20,12 +21,19 @@ import {
   CATS, DC, OPEN_MIDI, DEGREE_ALTS,
   deriveDegrees, computeStartFret, validateVoicing,
 } from '../data/theory.js';
-import { btn, panel, labelCss, Field } from '../components/ui.jsx';
+import { btn, panel, labelCss, Field, SymbolField } from '../components/ui.jsx';
 import { useIsNarrow } from '../lib/useIsNarrow.js';
 
 const STRINGS = ['E (6th)', 'A (5th)', 'D (4th)', 'G (3rd)', 'B (2nd)', 'e (1st)'];
-const FRETS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 const CAT_KEYS = Object.keys(CATS);
+
+// Open the fret window on the shape being edited rather than always at the
+// nut, so loading a 9th-fret voicing shows it instead of six empty frets.
+const windowFor = str => {
+  const active = str.filter(f => f > 0);
+  if (!active.length) return 1;
+  return Math.max(1, Math.min(MAX_WIN_START, Math.min(...active)));
+};
 
 const slug = s => (s || '').replace(/[^a-z0-9]/gi, '').slice(0, 14) || 'chord';
 const blankDraft = () => ({ id: '', name: '', sym: '', cat: CAT_KEYS[0], movable: false, label: '', str: [-1, -1, -1, -1, -1, -1], rootIdx: null, overrides: {} });
@@ -62,6 +70,9 @@ export default function BuildTab({ editTarget }) {
   // them buries the form under a scroll of chords. So the two become views:
   // the editor takes the screen, with the list one tap away.
   const [showList, setShowList] = useState(false);
+  // Which six frets the shape editor is showing. Held here, not in the
+  // fretboard, so opening a different chord can aim it at that chord.
+  const [winStart, setWinStart] = useState(() => (editTarget ? windowFor(editTarget.voicings[0].str) : 1));
 
   const flash = m => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -77,6 +88,23 @@ export default function BuildTab({ editTarget }) {
     return { str: draft.str, deg: finalDeg, sf: computeStartFret(draft.str), label: draft.label };
   }, [draft, finalDeg]);
 
+  // Strings whose interval has more than one legitimate spelling. Previously
+  // every string carried a degree cell that was usually just a read-only chip;
+  // degrees now render inside the dots, so only the genuinely ambiguous ones
+  // still need a control.
+  const spellingChoices = useMemo(() => {
+    if (!draft || draft.rootIdx == null || draft.str[draft.rootIdx] < 0) return [];
+    const rootPc = (OPEN_MIDI[draft.rootIdx] + draft.str[draft.rootIdx]) % 12;
+    const out = [];
+    draft.str.forEach((fret, i) => {
+      if (fret < 0 || i === draft.rootIdx) return;
+      const interval = (((OPEN_MIDI[i] + fret) % 12 - rootPc) % 12 + 12) % 12;
+      const opts = DEGREE_ALTS[interval];
+      if (opts && opts.length > 1) out.push({ i, opts });
+    });
+    return out;
+  }, [draft]);
+
   const draftErrors = useMemo(() => {
     if (!draft) return [];
     const e = [];
@@ -91,9 +119,9 @@ export default function BuildTab({ editTarget }) {
 
   // ── Draft actions ───────────────────────────────────────────────────────
   // Each of these opens the editor, so on narrow they also leave the list.
-  const startNew = () => { editingId.current = null; setDraft(blankDraft()); setShowList(false); };
-  const startEdit = c => { editingId.current = c.id; setDraft(draftFromChord(c)); setShowList(false); };
-  const startDuplicate = c => { editingId.current = null; const d = draftFromChord(c); d.id = ''; d.name = c.name + ' copy'; setDraft(d); setShowList(false); };
+  const startNew = () => { editingId.current = null; setDraft(blankDraft()); setShowList(false); setWinStart(1); };
+  const startEdit = c => { editingId.current = c.id; setDraft(draftFromChord(c)); setShowList(false); setWinStart(windowFor(c.voicings[0].str)); };
+  const startDuplicate = c => { editingId.current = null; const d = draftFromChord(c); d.id = ''; d.name = c.name + ' copy'; setDraft(d); setShowList(false); setWinStart(windowFor(c.voicings[0].str)); };
   const cancel = () => { editingId.current = null; setDraft(null); setShowList(false); };
 
   const setStr = (i, fret) => setDraft(d => {
@@ -222,22 +250,66 @@ export default function BuildTab({ editTarget }) {
         {/* Editor form */}
         {editorVisible && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Shape first. It used to sit below the metadata, which put the
+                diagram off-screen exactly when you were entering frets — the
+                whole reason this is now a direct-manipulation editor. */}
             <div style={panel}>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: narrow ? 'center' : 'flex-start' }}>
-                {/* Live preview */}
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ background: '#0f0e17', borderRadius: '10px', padding: '12px', border: '1px solid #2a2840' }}>
-                    <ChordDiagram v={draftVoicing} showDeg size={narrow ? 1.45 : 1.7} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '8px', justifyContent: 'center' }}>
-                    <button onClick={() => playVoicing(draftVoicing, 'strum')} style={btn(false)}>♬ Strum</button>
-                    <button onClick={() => playVoicing(draftVoicing, 'arp')} style={btn(false)}>♩ Arp</button>
+              <div style={labelCss}>Shape — tap the grid to place notes</div>
+              <div style={{ background: '#0f0e17', borderRadius: '10px', padding: '10px 6px 6px', border: '1px solid #2a2840' }}>
+                <EditableFretboard
+                  str={draft.str} deg={finalDeg} rootIdx={draft.rootIdx} winStart={winStart}
+                  maxWidth={narrow ? 360 : 320}
+                  onCell={(i, f) => setStr(i, draft.str[i] === f ? -1 : f)}
+                  onMarker={i => setStr(i, draft.str[i] === 0 ? -1 : 0)}
+                  onRoot={setRoot}
+                />
+              </div>
+
+              {/* Fret window */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '8px' }}>
+                <button onClick={() => setWinStart(w => Math.max(1, w - 1))} disabled={winStart <= 1}
+                  style={{ ...btn(false), opacity: winStart <= 1 ? 0.3 : 1, minWidth: '44px', minHeight: '38px' }}>▲</button>
+                <div style={{ fontSize: '11px', color: '#bbb', fontWeight: 700, minWidth: '92px', textAlign: 'center', fontFamily: 'monospace' }}>
+                  frets {winStart}–{winStart + FRET_WINDOW - 1}
+                </div>
+                <button onClick={() => setWinStart(w => Math.min(MAX_WIN_START, w + 1))} disabled={winStart >= MAX_WIN_START}
+                  style={{ ...btn(false), opacity: winStart >= MAX_WIN_START ? 0.3 : 1, minWidth: '44px', minHeight: '38px' }}>▼</button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '5px', marginTop: '10px', justifyContent: 'center' }}>
+                <button onClick={() => playVoicing(draftVoicing, 'strum')} style={btn(false)}>♬ Strum</button>
+                <button onClick={() => playVoicing(draftVoicing, 'arp')} style={btn(false)}>♩ Arp</button>
+              </div>
+
+              {/* Only the ambiguous strings need a spelling control. */}
+              {spellingChoices.length > 0 && (
+                <div style={{ marginTop: '10px', borderTop: '1px solid #1a1928', paddingTop: '8px' }}>
+                  <div style={{ ...labelCss, marginBottom: '5px' }}>Spelling</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {spellingChoices.map(({ i, opts }) => (
+                      <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#bbb' }}>
+                        {STRINGS[i]}
+                        <select value={finalDeg[i]} onChange={e => setOverride(i, e.target.value)}
+                          style={{ background: (DC[finalDeg[i]] || '#888') + '22', color: DC[finalDeg[i]] || '#fff', border: `1px solid ${DC[finalDeg[i]] || '#2a2840'}`, borderRadius: '7px', padding: '5px 6px', fontSize: '12px', fontWeight: 700 }}>
+                          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </label>
+                    ))}
                   </div>
                 </div>
+              )}
+
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '9px', lineHeight: 1.5 }}>
+                Tap a square to fret that string (tap it again to mute). The ✕/○ above a string opens or mutes it, and <b style={{ color: '#ff8f8f' }}>R</b> marks the root. Degrees derive from the shape — a wrong note can't be saved with a right-sounding label.
+              </div>
+            </div>
+
+            <div style={panel}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 {/* Metadata fields */}
                 <div style={{ flex: 1, minWidth: narrow ? '100%' : '240px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <Field label="Name" value={draft.name} onChange={v => patch(editingId.current || draft.id ? { name: v } : { name: v, id: slug(v) })} placeholder="e.g. C Major" />
-                  <Field label="Symbol" value={draft.sym} onChange={v => patch({ sym: v })} placeholder="e.g. C, m7, Δ" />
+                  <SymbolField label="Symbol" value={draft.sym} onChange={v => patch({ sym: v })} placeholder="e.g. C, m7, CΔ9" />
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={labelCss}>Category</div>
@@ -257,90 +329,6 @@ export default function BuildTab({ editTarget }) {
                   <div style={{ fontSize: '11px', color: '#888' }}>Start fret (auto): <b style={{ color: '#4ecdc4' }}>{computeStartFret(draft.str)}</b></div>
                 </div>
               </div>
-            </div>
-
-            {/* Fretboard editor */}
-            <div style={panel}>
-              <div style={labelCss}>Shape — set each string's fret, then mark the root</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {STRINGS.map((sName, i) => {
-                  const fret = draft.str[i];
-                  const isRoot = draft.rootIdx === i;
-                  const deg = finalDeg[i];
-                  // Which spellings this string's interval could legitimately take.
-                  let opts = null;
-                  if (fret >= 0 && draft.rootIdx != null && draft.str[draft.rootIdx] >= 0 && i !== draft.rootIdx) {
-                    const rootPc = (OPEN_MIDI[draft.rootIdx] + draft.str[draft.rootIdx]) % 12;
-                    const pc = (OPEN_MIDI[i] + fret) % 12;
-                    const interval = ((pc - rootPc) % 12 + 12) % 12;
-                    opts = DEGREE_ALTS[interval] || null;
-                  }
-                  // The degree readout: a chip, or a dropdown where the interval
-                  // has more than one legitimate spelling.
-                  const degCell = fret < 0
-                    ? <span style={{ color: '#555', fontSize: '11px' }}>muted</span>
-                    : opts && opts.length > 1
-                      ? <select value={deg} onChange={e => setOverride(i, e.target.value)} style={{ background: (DC[deg] || '#888') + '22', color: DC[deg] || '#fff', border: `1px solid ${DC[deg] || '#2a2840'}`, borderRadius: '7px', padding: narrow ? '5px 6px' : '3px 6px', fontSize: '12px', fontWeight: 700 }}>
-                          {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      : <span style={{ background: (DC[deg] || '#888') + '22', color: DC[deg] || '#888', border: `1px solid ${(DC[deg] || '#2a2840')}66`, borderRadius: '7px', padding: '3px 8px', fontSize: '12px', fontWeight: 700 }}>{deg || '—'}</span>;
-
-                  // The fret picker. Sixteen buttons never fit a phone: wrapping
-                  // them turns each string into a three-line block and the six
-                  // rows stop reading as a fretboard. Scrolling the strip
-                  // sideways keeps one string to one line, and the row still
-                  // starts at the nut so the common frets need no scrolling.
-                  const fretStrip = (
-                    <div className="fct-fretstrip" style={{
-                      display: 'flex', gap: narrow ? '4px' : '3px', flex: narrow ? 'none' : 1,
-                      flexWrap: narrow ? 'nowrap' : 'wrap',
-                      overflowX: narrow ? 'auto' : 'visible',
-                      WebkitOverflowScrolling: 'touch',
-                      scrollbarWidth: 'none',
-                      padding: narrow ? '2px 0' : 0,
-                    }}>
-                      {FRETS.map(f => (
-                        <button key={f} onClick={() => setStr(i, f)} style={{
-                          ...btn(fret === f, f === -1 ? '#e74c3c' : '#74b9ff'),
-                          minWidth: narrow ? '34px' : '26px',
-                          minHeight: narrow ? '38px' : '32px',
-                          padding: '4px 6px',
-                          flexShrink: 0,
-                        }}>
-                          {f === -1 ? '✕' : f}
-                        </button>
-                      ))}
-                    </div>
-                  );
-
-                  // Narrow stacks the identity row above the fret strip; wide
-                  // keeps everything on one line.
-                  if (narrow) return (
-                    <div key={i} style={{ borderBottom: '1px solid #1a1928', paddingBottom: '6px', marginBottom: '2px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                        <div style={{ fontSize: '11px', color: '#bbb', fontWeight: 700, flexShrink: 0 }}>{sName}</div>
-                        <button onClick={() => setRoot(i)} disabled={fret < 0} title="Mark as root"
-                          style={{ ...btn(isRoot, '#ff4757'), minWidth: '34px', minHeight: '32px', opacity: fret < 0 ? 0.3 : 1 }}>R</button>
-                        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>{degCell}</div>
-                      </div>
-                      {fretStrip}
-                    </div>
-                  );
-
-                  return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #1a1928', paddingBottom: '4px' }}>
-                      <div style={{ width: '54px', fontSize: '11px', color: '#bbb', fontWeight: 700, flexShrink: 0 }}>{sName}</div>
-                      <button onClick={() => setRoot(i)} disabled={fret < 0} title="Mark as root"
-                        style={{ ...btn(isRoot, '#ff4757'), minWidth: '30px', opacity: fret < 0 ? 0.3 : 1 }}>R</button>
-                      {fretStrip}
-                      <div style={{ width: '78px', flexShrink: 0, textAlign: 'right' }}>
-                        {degCell}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ fontSize: '10px', color: '#666', marginTop: '8px' }}>Degrees auto-derive from the shape and the root. Where a note can be spelled two ways (e.g. ♭3/♯9), use the dropdown.</div>
             </div>
 
             {/* Errors + actions */}
