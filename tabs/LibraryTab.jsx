@@ -13,18 +13,28 @@ import { EmptyState } from '../components/ui.jsx';
 import { CATS } from '../data/theory.js';
 import { ACCENT } from '../lib/tool.js';
 
+// Sentinel for the ★ pill. Safe alongside real CATS keys because it is not one
+// — `unassigned` is the only key that could ever look like a status.
+const MASTERED_FILTER = '__mastered__';
+
 export default function LibraryTab({ chords, showDeg, setShowDeg, mastered, onToggleMastered, scrollRef, onGoBuild, onEditChord }) {
   const [cat, setCat] = useState('all');
   const [search, setSearch] = useState('');
   const [sel, setSel] = useState(null);
   const savedScrollY = useRef(0);
 
+  // `cat` doubles as the filter slot: 'all', a CATS key, or the pseudo-category
+  // 'mastered'. Status is not a category, but it is the same one-tap question
+  // ("show me just these"), so it belongs in the same strip rather than in a
+  // second row of controls.
   const list = useMemo(() => {
-    let r = cat === 'all' ? chords : chords.filter(c => c.cat === cat);
+    let r = cat === 'all' ? chords
+      : cat === MASTERED_FILTER ? chords.filter(c => mastered?.has(c.id))
+        : chords.filter(c => c.cat === cat);
     const q = search.trim().toLowerCase();
     if (q) r = r.filter(c => c.name.toLowerCase().includes(q) || c.sym.toLowerCase().includes(q));
     return r;
-  }, [chords, cat, search]);
+  }, [chords, cat, search, mastered]);
 
   const chord = sel ? chords.find(c => c.id === sel) : null;
 
@@ -47,6 +57,10 @@ export default function LibraryTab({ chords, showDeg, setShowDeg, mastered, onTo
 
   // Only offer categories that actually have chords in them.
   const usedCats = Object.keys(CATS).filter(k => chords.some(c => c.cat === k));
+  const nMastered = mastered?.size || 0;
+  // The strip earns its space if there is more than one category *or* anything
+  // mastered — a single-category library still wants the ★ filter.
+  const showStrip = usedCats.length > 1 || nMastered > 0;
 
   return (
     <div style={{ padding: '14px', maxWidth: '640px', margin: '0 auto' }}>
@@ -58,9 +72,18 @@ export default function LibraryTab({ chords, showDeg, setShowDeg, mastered, onTo
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or symbol…"
         style={{ width: '100%', background: '#13121f', border: '1px solid #2a2840', borderRadius: '9px', padding: '9px 12px', color: '#fff', fontSize: '13px', marginBottom: '10px', outline: 'none' }} />
 
-      {usedCats.length > 1 && (
+      {showStrip && (
         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '12px' }}>
           <button onClick={() => setCat('all')} style={{ padding: '5px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '10px', fontWeight: 700, border: 'none', background: cat === 'all' ? ACCENT : '#13121f', color: cat === 'all' ? '#111' : '#777', transition: 'all .15s' }}>All</button>
+          {nMastered > 0 && (() => {
+            const on = cat === MASTERED_FILTER;
+            return (
+              <button onClick={() => setCat(on ? 'all' : MASTERED_FILTER)}
+                style={{ padding: '5px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '10px', fontWeight: 700, border: `1px solid ${on ? ACCENT : ACCENT + '33'}`, background: on ? ACCENT + '22' : '#13121f', color: on ? ACCENT : '#666', transition: 'all .15s' }}>
+                ★ Mastered <span style={{ opacity: 0.7 }}>({nMastered})</span>
+              </button>
+            );
+          })()}
           {usedCats.map(k => {
             const c = CATS[k], n = chords.filter(x => x.cat === k).length, on = cat === k;
             return (

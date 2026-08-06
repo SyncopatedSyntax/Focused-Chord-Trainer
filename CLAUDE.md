@@ -45,6 +45,12 @@ library *and* the progress with no per-tool wiring.
 - `fct_seeded` — set once the starter chord has been offered; see above
 - `fct_srs` — SM-2 schedule · `fct_hist` — quiz history · `fct_degh` — degree
   quiz results · `fct_mastered` — manually retired chords
+- `fct_mastered_at` — id → `YYYY-MM-DD`, when each chord was mastered. Kept
+  beside `fct_mastered` rather than folded into it: that key is a plain id list
+  read by everything asking "is this mastered", and widening it would touch all
+  of them. Dates are additive and optional, so chords mastered before this
+  existed simply have none and render without one. Un-mastering deletes the
+  date, so re-mastering later reads as a fresh achievement.
 - `fct_launches`, `fct_audio_hint_launch*` — audio-hint suppression counters
 
 `loadChords()` validates on read and **drops** entries that fail rather than
@@ -71,7 +77,11 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
   at mount so grading can't reorder the cards underneath you.
 - **Library** 📚 — search, category strip, detail view with transpose, audio,
   degree guide, and the mastered toggle. Deliberately **no** Family/Builder
-  filter panel (see README).
+  filter panel (see README). The strip carries a **★ Mastered** pill alongside
+  the categories: status is not a category, but it is the same one-tap "show me
+  just these", so `cat` doubles as the filter slot and holds the sentinel
+  `'__mastered__'`. The strip now shows whenever there is more than one
+  category *or* anything mastered — a one-category library still wants ★.
 - **Build** ✏️ — the chord editor, ported from Chord Trainer's
   `editor/Editor.jsx`. Writes to the context, not to a file. Also exports and
   imports `chords.json` for interchange with Chord Trainer.
@@ -138,6 +148,15 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
 - **Quiz** 🎯 — Name↔Shape and the Scale Degree trainer. Gated below 4 chords;
   the Scale Degree tier picker dims degrees no chord in the library contains.
 - **Weak** 💪 — misses and low ease factors, with a scoped drill.
+- **Mastered** 🏆 — the trophy shelf, and the answer to "how far have I come"
+  rather than "is this one done". Progress bar (n of total, %), a proportional
+  milestone line, a 30-day count, then the mastered chords newest-first with a
+  relative date each. Sits next to Weak because they are the two ends of the
+  same progress story. Everything on it is derivable elsewhere — the point is
+  collecting it. Tapping a card opens the same `ChordDetail`, which is where
+  mastering is undone; the tab updates live because `mastered` flows from App.
+  Remember mastering is a **manual retire switch**, not an SRS state:
+  `getDailyChords()` stops scheduling a mastered chord, but quizzes still use it.
 - **Settings** ⚙️ — `ProgressBackup`, build stamp, update button.
 
 ## Audio

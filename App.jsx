@@ -12,6 +12,7 @@ import LibraryTab from './tabs/LibraryTab.jsx';
 import BuildTab from './tabs/BuildTab.jsx';
 import QuizTab from './tabs/QuizTab.jsx';
 import WeakTab from './tabs/WeakTab.jsx';
+import MasteredTab from './tabs/MasteredTab.jsx';
 import SettingsTab from './tabs/SettingsTab.jsx';
 
 // Practice state keys. The chord library uses the same `fct_` prefix (see
@@ -20,6 +21,12 @@ const K_SRS = PREFIX + 'srs';
 const K_HIST = PREFIX + 'hist';
 const K_DEGH = PREFIX + 'degh';
 const K_MASTERED = PREFIX + 'mastered';
+// When each chord was mastered, id → 'YYYY-MM-DD'. Kept beside fct_mastered
+// rather than folded into it: that key is a plain id list read by everything
+// that asks "is this mastered", and widening it would touch all of them. Dates
+// are additive and optional — chords mastered before this existed simply have
+// none, and the Mastered tab renders them without a date rather than guessing.
+const K_MASTERED_AT = PREFIX + 'mastered_at';
 const K_LAUNCHES = PREFIX + 'launches';
 const K_HINT10 = PREFIX + 'audio_hint_launch';
 const K_HINT20 = PREFIX + 'audio_hint_launch20';
@@ -33,6 +40,9 @@ const TABS = [
   { id: 'build', label: 'Build', icon: '✏️' },
   { id: 'quiz', label: 'Quiz', icon: '🎯' },
   { id: 'weak', label: 'Weak', icon: '💪' },
+  // Weak and Mastered are the two ends of the same progress story, so they sit
+  // together rather than either being buried next to Settings.
+  { id: 'mastered', label: 'Mastered', icon: '🏆' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
@@ -44,6 +54,7 @@ export default function App() {
   const [hist, setHist] = useState([]);
   const [degHist, setDegHist] = useState([]);
   const [mastered, setMastered] = useState(() => new Set());
+  const [masteredAt, setMasteredAt] = useState({});
   const [showAudioHint, setShowAudioHint] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -57,6 +68,7 @@ export default function App() {
   const histRef = useRef(hist); histRef.current = hist;
   const degHistRef = useRef(degHist); degHistRef.current = degHist;
   const masteredRef = useRef(mastered); masteredRef.current = mastered;
+  const masteredAtRef = useRef(masteredAt); masteredAtRef.current = masteredAt;
 
   // ── Load practice state ────────────────────────────────────────────────
   useEffect(() => {
@@ -64,6 +76,7 @@ export default function App() {
     setHist(read(K_HIST, []));
     setDegHist(read(K_DEGH, []));
     setMastered(new Set(read(K_MASTERED, [])));
+    setMasteredAt(read(K_MASTERED_AT, {}));
     setLoaded(true);
   }, []);
 
@@ -136,11 +149,16 @@ export default function App() {
   const saveHist = d => { setHist(d); write(K_HIST, d); };
   const saveDegHist = d => { setDegHist(d); write(K_DEGH, d); };
   const saveMastered = s => { setMastered(s); write(K_MASTERED, [...s]); };
+  const saveMasteredAt = m => { setMasteredAt(m); write(K_MASTERED_AT, m); };
 
   const onToggleMastered = useCallback(id => {
     const s = new Set(masteredRef.current);
-    if (s.has(id)) s.delete(id); else s.add(id);
+    const at = { ...masteredAtRef.current };
+    // Un-mastering forgets the date too, so re-mastering later reads as a
+    // fresh achievement rather than back-dating it to the first attempt.
+    if (s.has(id)) { s.delete(id); delete at[id]; } else { s.add(id); at[id] = todayStr(); }
     saveMastered(s);
+    saveMasteredAt(at);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -195,6 +213,7 @@ export default function App() {
           {tab === 'build' && <BuildTab key={editTarget ? editTarget.id : 'new'} editTarget={editTarget} />}
           {tab === 'quiz' && <QuizTab chords={chords} showDeg={showDeg} onChordQuizDone={onChordQuizDone} onDegDone={onDegDone} onGoBuild={goBuild} />}
           {tab === 'weak' && <WeakTab chords={chords} history={hist} degHist={degHist} srs={srs} showDeg={showDeg} onComplete={onChordQuizDone} onGoBuild={goBuild} />}
+          {tab === 'mastered' && <MasteredTab chords={chords} mastered={mastered} masteredAt={masteredAt} showDeg={showDeg} setShowDeg={setShowDeg} onToggleMastered={onToggleMastered} scrollRef={scrollRef} onGoBuild={goBuild} onEditChord={editChord} />}
           {tab === 'settings' && <SettingsTab chords={chords} srs={srs} hist={hist} degHist={degHist} />}
 
           {showAudioHint && (
