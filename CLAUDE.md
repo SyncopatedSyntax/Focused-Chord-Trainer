@@ -159,6 +159,29 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
   `getDailyChords()` stops scheduling a mastered chord, but quizzes still use it.
 - **Settings** ⚙️ — `ProgressBackup`, build stamp, update button.
 
+## The keyboard and the scroll container
+
+`App.jsx` is a fixed `100dvh` flex column with its own `overflow-y:auto`
+scroller, and **`dvh` does not shrink when the on-screen keyboard opens** — so
+the lower part of the page sits underneath it. Two things follow, and the Build
+tab (the one screen with a long form) is where both bite:
+
+- **The window scroll lock must stand down while a field is focused.** The lock
+  exists for the iOS standalone tap-offset quirk, but with the keyboard up iOS
+  scrolls the *window* to reveal the focused input, and pinning it back to 0 is
+  what buried the caret under the keyboard.
+- **Scrolling alone cannot rescue a field near the bottom.** The container is
+  already at its maximum `scrollTop`, because the keyboard added nothing to
+  scroll into. So `apply()` pads the scroller by `window.innerHeight -
+  (visualViewport.offsetTop + visualViewport.height)` *first*, creating the
+  room, and only then scrolls the field into it. The padding is applied only
+  while a field is focused and cleared on blur.
+
+`visualViewport` is the only thing that reports the space actually left;
+`innerHeight` and `dvh` both keep reporting the full screen. Measure with it,
+and re-measure on its `resize` — a measurement taken at `focusin` still sees the
+pre-keyboard viewport, since the keyboard animates in.
+
 ## Audio
 
 `lib/audio.js` is copied from Chord Trainer's `App.jsx` (**not** its simpler
