@@ -102,9 +102,14 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
   the shape panel sits **above** the metadata for the same reason. Interaction:
   tap a cell to fret that string (tapping the same cell again mutes it), tap
   the marker above a string to toggle open/muted, tap the **R** row under the
-  grid to mark the root. Degrees render inside the dots, so the only per-string
-  control left is a spelling `<select>` for the genuinely ambiguous intervals
-  (`DEGREE_ALTS`) — previously every string carried a mostly read-only chip.
+  grid to mark the root. **Dots are labelled with the note they sound, not the
+  scale degree** — a degree needs a root, and there is no root for the whole
+  time you are placing notes, so degree labels were blank exactly when the
+  feedback was wanted. The degree still drives the dot's **colour** (so the root
+  reads red the moment it is marked) and is still derived, validated and saved;
+  it just is not the text. The only per-string control left is a spelling
+  `<select>` for the genuinely ambiguous intervals (`DEGREE_ALTS`), which is
+  also now the one place this tab shows a degree at all.
   - Six frets show at once; `winStart` lives in `BuildTab` (not the board) so
     opening a chord can aim the window at it via `windowFor()`. Notes outside
     the window render as dashed ghosts labelled with their real fret, so a

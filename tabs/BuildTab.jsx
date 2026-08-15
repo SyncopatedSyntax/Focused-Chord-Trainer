@@ -18,7 +18,7 @@ import { playVoicing } from '../lib/audio.js';
 import { useChords } from '../lib/ChordsContext.jsx';
 import { exportChords, readChordsFile } from '../lib/library.js';
 import {
-  CATS, DC, OPEN_MIDI, DEGREE_ALTS,
+  CATS, DC, OPEN_MIDI, NOTE_NAMES, DEGREE_ALTS,
   deriveDegrees, computeStartFret, validateVoicing,
 } from '../data/theory.js';
 import { btn, panel, labelCss, Field, SymbolField } from '../components/ui.jsx';
@@ -124,6 +124,14 @@ export default function BuildTab({ editTarget }) {
     if (draft.autoId && !editingId.current && draft.id !== slug(nextName)) next.id = slug(nextName);
     if (Object.keys(next).length) setDraft(d => ({ ...d, ...next }));
   }, [identified, draft]);
+
+  // What each fretted string actually sounds. This is what the dots are
+  // labelled with — a degree needs a root, and there is no root while you are
+  // still placing the notes.
+  const noteNames = useMemo(
+    () => (draft ? draft.str.map((f, i) => (f < 0 ? null : NOTE_NAMES[(OPEN_MIDI[i] + f) % 12])) : []),
+    [draft?.str],
+  );
 
   // Strings whose interval has more than one legitimate spelling. Previously
   // every string carried a degree cell that was usually just a read-only chip;
@@ -294,7 +302,7 @@ export default function BuildTab({ editTarget }) {
               <div style={labelCss}>Shape — tap the grid to place notes</div>
               <div style={{ background: '#0f0e17', borderRadius: '10px', padding: '10px 6px 6px', border: '1px solid #2a2840' }}>
                 <EditableFretboard
-                  str={draft.str} deg={finalDeg} rootIdx={draft.rootIdx} winStart={winStart}
+                  str={draft.str} deg={finalDeg} notes={noteNames} rootIdx={draft.rootIdx} winStart={winStart}
                   maxWidth={narrow ? 360 : 320}
                   onCell={(i, f) => setStr(i, draft.str[i] === f ? -1 : f)}
                   onMarker={i => setStr(i, draft.str[i] === 0 ? -1 : 0)}
@@ -337,7 +345,7 @@ export default function BuildTab({ editTarget }) {
               )}
 
               <div style={{ fontSize: '10px', color: '#666', marginTop: '9px', lineHeight: 1.5 }}>
-                Tap a square to fret that string (tap it again to mute). The ✕/○ above a string opens or mutes it, and <b style={{ color: '#ff8f8f' }}>R</b> marks the root. Degrees derive from the shape — a wrong note can't be saved with a right-sounding label.
+                Tap a square to fret that string (tap it again to mute). The ✕/○ above a string opens or mutes it, and <b style={{ color: '#ff8f8f' }}>R</b> marks the root. Dots show the note you're fretting; scale degrees still derive from the shape and the root, so a wrong note can't be saved with a right-sounding label.
               </div>
             </div>
 

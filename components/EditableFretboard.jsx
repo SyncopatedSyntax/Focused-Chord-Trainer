@@ -27,8 +27,15 @@ export const MAX_WIN_START = MAX_FRET - FRET_WINDOW + 1;
 
 const STRING_LABELS = ['E', 'A', 'D', 'G', 'B', 'e'];
 
+// Dots are labelled with the NOTE they sound, not the scale degree. Degrees
+// are undefined until a root is marked, which is exactly the stretch when you
+// are placing notes and most want to know what you just fretted. The degree is
+// still what drives the dot's COLOUR, so the root keeps reading as red the
+// moment it is marked, and it is still what gets derived, validated and saved —
+// it just is not the label any more. Where a degree is genuinely ambiguous the
+// spelling dropdown below the board is where it surfaces.
 export default function EditableFretboard({
-  str, deg, rootIdx, winStart,
+  str, deg, notes, rootIdx, winStart,
   onCell, onMarker, onRoot,
   maxWidth = 360,
 }) {
@@ -52,7 +59,8 @@ export default function EditableFretboard({
 
   for (let i = 0; i < 6; i++) {
     const fret = str[i];
-    const d = deg?.[i];
+    const d = deg?.[i];          // drives colour, and the saved label
+    const n = notes?.[i];        // drives the text on the dot
     const isRoot = rootIdx === i;
     const muted = fret < 0;
 
@@ -77,8 +85,8 @@ export default function EditableFretboard({
           </g>
         ) : fret === 0 ? (
           <g>
-            <circle cx={x(i)} cy={MARK_Y} r={4.4} fill={d ? (DC[d] || '#74b9ff') : 'none'} stroke={d ? (DC[d] || '#74b9ff') : '#74b9ff'} strokeWidth={1.9} />
-            {d && <text x={x(i)} y={MARK_Y} textAnchor="middle" dominantBaseline="central" fontSize={d.length > 2 ? 4.4 : d.length > 1 ? 5 : 6} fill="#111" fontWeight="bold" fontFamily="sans-serif">{d}</text>}
+            <circle cx={x(i)} cy={MARK_Y} r={5.6} fill={d ? (DC[d] || '#74b9ff') : '#1b1a2a'} stroke={d ? (DC[d] || '#74b9ff') : '#74b9ff'} strokeWidth={1.6} />
+            {n && <text x={x(i)} y={MARK_Y} textAnchor="middle" dominantBaseline="central" fontSize={n.length > 1 ? 4.8 : 6} fill={d ? '#111' : '#9fd3ff'} fontWeight="bold" fontFamily="sans-serif">{n}</text>}
           </g>
         ) : (
           // Fretted: a hollow hint that this marker is still the way to open
@@ -95,7 +103,7 @@ export default function EditableFretboard({
         marks.push(
           <g key={`d${i}`}>
             <circle cx={x(i)} cy={cellCy(fret)} r={7.4} fill={fill} />
-            {d && <text x={x(i)} y={cellCy(fret)} textAnchor="middle" dominantBaseline="central" fontSize={d.length > 2 ? 5.6 : d.length > 1 ? 6.4 : 7.4} fill="#111" fontWeight="bold" fontFamily="sans-serif">{d}</text>}
+            {n && <text x={x(i)} y={cellCy(fret)} textAnchor="middle" dominantBaseline="central" fontSize={n.length > 1 ? 6.2 : 7.6} fill="#111" fontWeight="bold" fontFamily="sans-serif">{n}</text>}
           </g>
         );
       } else {
