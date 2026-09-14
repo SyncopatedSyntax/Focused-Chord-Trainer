@@ -98,14 +98,14 @@ export default function LibraryTab({ chords, showDeg, setShowDeg, mastered, onTo
       {list.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '28px', color: '#888', fontSize: '13px' }}>No chords match.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(165px, 1fr))', gap: '8px' }}>
           {list.map(c => {
             const ci = CATS[c.cat] || { label: c.cat || 'Chord', color: ACCENT };
             const isMastered = mastered?.has(c.id);
             return (
               <div key={c.id} onClick={() => handleSel(c.id)}
                 style={{ background: '#13121f', borderRadius: '11px', padding: '10px', border: `1px solid ${ci.color}33`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
-                <ChordDiagram v={c.voicings[0]} showDeg={showDeg} size={0.95} />
+                <ChordDiagram v={c.voicings[0]} showDeg={showDeg} size={1.15} />
                 <div style={{ textAlign: 'center', minWidth: 0, width: '100%' }}>
                   <div style={{ fontWeight: 700, fontSize: '12px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {isMastered && <span style={{ color: ACCENT, marginRight: '3px' }}>★</span>}{c.name}

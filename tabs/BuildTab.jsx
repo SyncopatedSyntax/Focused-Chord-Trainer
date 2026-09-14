@@ -259,7 +259,7 @@ export default function BuildTab({ editTarget }) {
           the layout past the viewport instead of letting the strip scroll. */}
       <div style={{ display: 'grid', gridTemplateColumns: !narrow && draft ? 'minmax(240px, 300px) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '14px', alignItems: 'start' }}>
         {/* List */}
-        <div style={{ ...panel, display: listVisible ? 'block' : 'none' }}>
+        <div style={{ ...panel, display: listVisible ? 'block' : 'none', ...(narrow ? {} : { position: 'sticky', top: '12px' }) }}>
           {narrow && draft && showList && (
             <button onClick={() => setShowList(false)} style={{ ...btn(false, '#4ecdc4'), width: '100%', marginBottom: '8px', padding: '9px' }}>
               ← Back to {editingId.current ? 'editing' : 'your new chord'}
@@ -273,7 +273,13 @@ export default function BuildTab({ editTarget }) {
               {CAT_KEYS.map(k => <option key={k} value={k}>{CATS[k].label} ({chords.filter(c => c.cat === k).length})</option>)}
             </select>
           </>)}
-          <div style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          {/* No inner scroll on a phone. The list is the ONLY thing on screen
+              there (listVisible is true whenever no draft is open), so a 70vh
+              cap put a second scrolling surface inside the page's own — two
+              scrollbars for one list, and no way to tell which one you were
+              flicking. The two-column layout keeps its scroll, where an
+              independently scrolling list is the point rather than an accident. */}
+          <div style={{ maxHeight: narrow ? 'none' : '70vh', overflowY: narrow ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
             {filtered.map(c => (
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: editingId.current === c.id ? '#1e1c32' : '#0f0e17', border: `1px solid ${editingId.current === c.id ? '#4ecdc4' : '#2a2840'}`, borderRadius: '8px', padding: '5px 7px' }}>
                 <div onClick={() => startEdit(c)} style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0, cursor: 'pointer' }}>
