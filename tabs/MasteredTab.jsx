@@ -30,7 +30,8 @@ function relDate(iso, today) {
   if (d < 7) return `${d} days ago`;
   if (d < 14) return 'last week';
   if (d < 60) return `${Math.round(d / 7)} weeks ago`;
-  // A UTC day, so format it in UTC — local time puts the 1st in the month before.
+  // A day string parses as UTC midnight, so format it in UTC — local time puts
+  // the 1st in the month before, west of Greenwich.
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
