@@ -228,7 +228,7 @@ export default function App() {
 
   const onChordQuizDone = useCallback(results => {
     const ns = { ...srsRef.current }, nh = [...histRef.current], td = todayStr();
-    for (const r of results) { ns[r.id] = updateSRS(ns[r.id], r.correct); nh.push({ id: r.id, correct: r.correct, date: td }); }
+    for (const r of results) { ns[r.id] = { ...updateSRS(ns[r.id], r.correct), seen: (ns[r.id]?.seen || 0) + 1 }; nh.push({ id: r.id, correct: r.correct, date: td }); }
     saveSrs(ns); saveHist(nh);
   }, []); // eslint-disable-line
 
@@ -239,7 +239,7 @@ export default function App() {
   // Stable — reads fresh state through refs, so TodayTab's memo holds and the
   // card list doesn't reshuffle when a grade lands.
   const onMarkReviewed = useCallback(id => {
-    saveSrs({ ...srsRef.current, [id]: updateSRS(srsRef.current[id], true) });
+    saveSrs({ ...srsRef.current, [id]: { ...updateSRS(srsRef.current[id], true), seen: (srsRef.current[id]?.seen || 0) + 1 } });
     saveHist([...histRef.current, { id, correct: true, date: todayStr() }]);
   }, []); // eslint-disable-line
 

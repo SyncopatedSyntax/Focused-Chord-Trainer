@@ -43,7 +43,8 @@ library *and* the progress with no per-tool wiring.
 
 - `fct_chords` — the library (array, same shape as Chord Trainer's chords.json)
 - `fct_seeded` — set once the starter chord has been offered; see above
-- `fct_srs` — SM-2 schedule · `fct_hist` — quiz history · `fct_degh` — degree
+- `fct_srs` — SM-2 schedule (every grade bumps `seen`, which sync uses to
+  settle two devices' copies of a card) · `fct_hist` — quiz history · `fct_degh` — degree
   quiz results · `fct_mastered` — manually retired chords
 - `fct_mastered_at` — id → `YYYY-MM-DD`, when each chord was mastered. Kept
   beside `fct_mastered` rather than folded into it: that key is a plain id list
