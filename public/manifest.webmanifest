@@ -1,0 +1,29 @@
+{
+  "id": "/focus/",
+  "name": "Focused Chord Trainer",
+  "short_name": "Focus Chords",
+  "description": "Build your own chord library one shape at a time, then drill it with the same spaced repetition and quizzes.",
+  "start_url": "/focus/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0e17",
+  "theme_color": "#0f0e17",
+  "icons": [
+    {
+      "src": "/focus/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/focus/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/focus/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -128,13 +128,7 @@ export default function App() {
     setMeta('viewport', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover');
     setMeta('apple-mobile-web-app-capable', 'yes');
     setMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
-    setMeta('apple-mobile-web-app-title', 'Fretworks');
 
-    // Single PWA: reference the unified shell manifest (one manifest per origin)
-    // rather than generating a competing per-app one.
-    let mlink = document.querySelector('link[rel="manifest"]');
-    if (!mlink) { mlink = document.createElement('link'); mlink.rel = 'manifest'; document.head.appendChild(mlink); }
-    mlink.href = '/manifest.webmanifest';
 
     // ── iOS standalone scroll offset fix ─────────────────────────────────
     // In standalone PWA mode WebKit initialises window.scrollY to the
