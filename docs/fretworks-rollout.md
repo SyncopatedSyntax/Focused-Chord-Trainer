@@ -45,9 +45,11 @@ the obvious alternative if the repinning chore outweighs the reproducibility.
 
 Adding a tool is four repos, in this order:
 
-1. **`fretworks-design`** — an entry in `TOOLS` and `LEARNING_PATH` in
-   `src/tools.js`. `AppHeader` and `TabBar` resolve a tool's name and accent
-   through `toolByKey()` and nothing else, so without this the app's header is
+1. **`fretworks-design`** — an entry in `TOOLS` in `src/tools.js`, with its
+   `group` (family) and placed among that family, and the tool added to at
+   least one goal in `START_PATHS`. `npm test` there fails until all three are
+   right. `AppHeader` and `TabBar` resolve a tool's name and accent through
+   `toolByKey()` and nothing else, so without this the app's header is
    nameless and it never appears in any `ToolDrawer`.
 2. **The tool's own repo** — Vite `base: '/<key>/'`, a `vercel.json` rewriting
    `/<key>/(.*)` → `/$1`, and a Vercel project.
@@ -57,9 +59,9 @@ Adding a tool is four repos, in this order:
    - `ZONE_RE` is load-bearing: without it a `/<key>` navigation falls through
      to the catch-all rewrite and is served the shell's `index.html`, which
      renders the marketing brochure — a click-loop.
-   - The brochure looks up `SHOTS[t.key]` for **every** entry in `TOOLS`, so a
-     tool with no screenshot renders `<img src={undefined}>`. Screenshots are
-     360×782 WebP.
+   - The brochure shows `public/shots/<key>.webp` for **every** entry in
+     `TOOLS`, and the shell's build fails without it
+     (`scripts/check-shots.mjs`). Screenshots are 360×782 WebP.
 4. **Every other app** — repin, per the section above, or the new tool is
    missing from all their side menus.
 

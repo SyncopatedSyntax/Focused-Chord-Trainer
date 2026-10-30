@@ -138,8 +138,9 @@ position, add a second chord.
 Served at `/focus/` as a Vercel zone under the unified Fretworks origin, with
 accent teal `#4ecdc4`. Two companion changes complete the wiring:
 
-- **`fretworks-design`** — a `focus` entry in `src/tools.js` (`TOOLS` +
-  `LEARNING_PATH`). `AppHeader` and `TabBar` read a tool's name and accent from
+- **`fretworks-design`** — a `focus` entry in `src/tools.js` (`TOOLS`, in the
+  Chords family, and the alternative first step of the Chords goal in
+  `START_PATHS`). `AppHeader` and `TabBar` read a tool's name and accent from
   there. Until it merges, `components/FocusHeader.jsx` renders the same chrome
   from the local descriptor in `lib/tool.js`, so the app is correct either way —
   keep the two in sync.
