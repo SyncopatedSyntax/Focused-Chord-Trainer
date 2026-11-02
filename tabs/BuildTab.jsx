@@ -11,7 +11,7 @@
 // schedulable and quizzable, so all of that is gone. Export/import remain, but
 // as backup and interchange rather than as the publishing path.
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import ChordDiagram from '../components/ChordDiagram.jsx';
 import EditableFretboard, { FRET_WINDOW, MAX_WIN_START } from '../components/EditableFretboard.jsx';
 import { playVoicing } from '../lib/audio.js';
@@ -69,7 +69,8 @@ function draftFromChord(c) {
 // `editTarget` arrives when the user tapped Edit on a chord's detail view. App
 // remounts this component (keyed on the target's id) whenever it changes, so
 // the lazy initialisers below are enough to open the right draft.
-export default function BuildTab({ editTarget }) {
+// `scrollRef` is App's page scroller — the only scrolling surface on this tab.
+export default function BuildTab({ editTarget, scrollRef }) {
   const { chords, add, update, remove, merge } = useChords();
   // Open straight into a draft rather than a form-less list: editing what the
   // user asked to edit, or a blank chord when there is nothing to browse yet
@@ -91,6 +92,34 @@ export default function BuildTab({ editTarget }) {
   const [winStart, setWinStart] = useState(() => (editTarget ? windowFor(editTarget.voicings[0].str) : 1));
 
   const flash = m => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+
+  // ── One scrolling surface ───────────────────────────────────────────────
+  // The list scrolls with the page at every width (it used to have its own
+  // 70vh scroll box above 720px — a sideways phone, an iPad, a computer — so
+  // there were two scrollbars to manage). With one scroller, opening a chord
+  // from far down the list has to bring the editor into view: above 720px it
+  // sits at the top of the grid, and on a phone the editor replaces the list,
+  // so the old scroll position would land part-way down the form. Going back
+  // to the list on a phone returns to where you were in it.
+  const topRef = useRef(null);
+  const listScroll = useRef(0);
+  const [jump, setJump] = useState(null);   // { to: 'editor' | 'list' }, once per request
+  const toEditor = () => {
+    const sc = scrollRef?.current;
+    if (sc && narrow && (!draft || showList)) listScroll.current = sc.scrollTop;
+    setJump({ to: 'editor' });
+  };
+  const toList = () => { if (narrow) setJump({ to: 'list' }); };
+  // A layout effect, so the jump happens before the new view is painted.
+  useLayoutEffect(() => {
+    const sc = scrollRef?.current, top = topRef.current;
+    if (!jump || !sc || !top) return;
+    if (jump.to === 'list') sc.scrollTop = listScroll.current;
+    else {
+      const at = top.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 8;
+      if (at < sc.scrollTop) sc.scrollTop = Math.max(0, at);   // only ever up to it, never down past what you see
+    }
+  }, [jump, scrollRef]);
 
   // ── Derived degree array for the current draft ──────────────────────────
   const finalDeg = useMemo(() => {
@@ -164,10 +193,10 @@ export default function BuildTab({ editTarget }) {
 
   // ── Draft actions ───────────────────────────────────────────────────────
   // Each of these opens the editor, so on narrow they also leave the list.
-  const startNew = () => { editingId.current = null; setDraft(blankDraft()); setShowList(false); setWinStart(1); };
-  const startEdit = c => { editingId.current = c.id; setDraft(draftFromChord(c)); setShowList(false); setWinStart(windowFor(c.voicings[0].str)); };
-  const startDuplicate = c => { editingId.current = null; const d = draftFromChord(c); d.id = ''; d.name = c.name + ' copy'; setDraft(d); setShowList(false); setWinStart(windowFor(c.voicings[0].str)); };
-  const cancel = () => { editingId.current = null; setDraft(null); setShowList(false); };
+  const startNew = () => { toEditor(); editingId.current = null; setDraft(blankDraft()); setShowList(false); setWinStart(1); };
+  const startEdit = c => { toEditor(); editingId.current = c.id; setDraft(draftFromChord(c)); setShowList(false); setWinStart(windowFor(c.voicings[0].str)); };
+  const startDuplicate = c => { toEditor(); editingId.current = null; const d = draftFromChord(c); d.id = ''; d.name = c.name + ' copy'; setDraft(d); setShowList(false); setWinStart(windowFor(c.voicings[0].str)); };
+  const cancel = () => { editingId.current = null; setDraft(null); setShowList(false); toList(); };
 
   const setStr = (i, fret) => setDraft(d => {
     const str = [...d.str]; str[i] = fret;
@@ -195,6 +224,7 @@ export default function BuildTab({ editTarget }) {
     editingId.current = null;
     setDraft(null);
     setShowList(false);
+    toList();
     flash(wasEditing ? `Updated ${chord.name} ✓` : `Added ${chord.name} — it's in your practice rotation now ✓`);
   };
 
@@ -247,9 +277,10 @@ export default function BuildTab({ editTarget }) {
         </div>
       )}
 
+      <div ref={topRef} />
       {/* Switch back to the list without discarding the draft. */}
       {narrow && editorVisible && (
-        <button onClick={() => setShowList(true)} style={{ ...btn(false), width: '100%', marginBottom: '10px', padding: '9px' }}>
+        <button onClick={() => { setShowList(true); toList(); }} style={{ ...btn(false), width: '100%', marginBottom: '10px', padding: '9px' }}>
           ☰ Browse chords ({chords.length})
         </button>
       )}
@@ -259,9 +290,9 @@ export default function BuildTab({ editTarget }) {
           the layout past the viewport instead of letting the strip scroll. */}
       <div style={{ display: 'grid', gridTemplateColumns: !narrow && draft ? 'minmax(240px, 300px) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '14px', alignItems: 'start' }}>
         {/* List */}
-        <div style={{ ...panel, display: listVisible ? 'block' : 'none', ...(narrow ? {} : { position: 'sticky', top: '12px' }) }}>
+        <div style={{ ...panel, display: listVisible ? 'block' : 'none' }}>
           {narrow && draft && showList && (
-            <button onClick={() => setShowList(false)} style={{ ...btn(false, '#4ecdc4'), width: '100%', marginBottom: '8px', padding: '9px' }}>
+            <button onClick={() => { toEditor(); setShowList(false); }} style={{ ...btn(false, '#4ecdc4'), width: '100%', marginBottom: '8px', padding: '9px' }}>
               ← Back to {editingId.current ? 'editing' : 'your new chord'}
             </button>
           )}
@@ -273,13 +304,9 @@ export default function BuildTab({ editTarget }) {
               {CAT_KEYS.map(k => <option key={k} value={k}>{CATS[k].label} ({chords.filter(c => c.cat === k).length})</option>)}
             </select>
           </>)}
-          {/* No inner scroll on a phone. The list is the ONLY thing on screen
-              there (listVisible is true whenever no draft is open), so a 70vh
-              cap put a second scrolling surface inside the page's own — two
-              scrollbars for one list, and no way to tell which one you were
-              flicking. The two-column layout keeps its scroll, where an
-              independently scrolling list is the point rather than an accident. */}
-          <div style={{ maxHeight: narrow ? 'none' : '70vh', overflowY: narrow ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          {/* No scroll box of its own, at any width: the page is the one
+              scrolling surface (see `jump` above). */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             {filtered.map(c => (
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: editingId.current === c.id ? '#1e1c32' : '#0f0e17', border: `1px solid ${editingId.current === c.id ? '#4ecdc4' : '#2a2840'}`, borderRadius: '8px', padding: '5px 7px' }}>
                 <div onClick={() => startEdit(c)} style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0, cursor: 'pointer' }}>

@@ -268,7 +268,7 @@ export default function App() {
           )}
           {tab === 'daily' && <TodayTab chords={chords} srsData={srs} showDeg={showDeg} setShowDeg={setShowDeg} onMarkReviewed={onMarkReviewed} mastered={mastered} onToggleMastered={onToggleMastered} scrollRef={scrollRef} onGoBuild={goBuild} />}
           {tab === 'library' && <LibraryTab chords={chords} showDeg={showDeg} setShowDeg={setShowDeg} mastered={mastered} onToggleMastered={onToggleMastered} scrollRef={scrollRef} onGoBuild={goBuild} onEditChord={editChord} />}
-          {tab === 'build' && <BuildTab key={editTarget ? editTarget.id : 'new'} editTarget={editTarget} />}
+          {tab === 'build' && <BuildTab key={editTarget ? editTarget.id : 'new'} editTarget={editTarget} scrollRef={scrollRef} />}
           {tab === 'quiz' && <QuizTab chords={chords} showDeg={showDeg} onChordQuizDone={onChordQuizDone} onDegDone={onDegDone} onGoBuild={goBuild} />}
           {tab === 'weak' && <WeakTab chords={chords} history={hist} degHist={degHist} srs={srs} showDeg={showDeg} onComplete={onChordQuizDone} onGoBuild={goBuild} />}
           {tab === 'mastered' && <MasteredTab chords={chords} mastered={mastered} masteredAt={masteredAt} showDeg={showDeg} setShowDeg={setShowDeg} onToggleMastered={onToggleMastered} scrollRef={scrollRef} onGoBuild={goBuild} onEditChord={editChord} />}

@@ -95,6 +95,15 @@ subtly wrong in ways the UI would accept. Run `npm run verify` after touching it
   `document.documentElement.scrollWidth` check, because the overflow happens
   inside App's scroll container; measure that element instead.
 
+  **One scrolling surface at every width.** The chord list has no scroll box
+  of its own: it used to keep a 70vh one above 720px (a sideways iPhone, an
+  iPad, a computer), and Zak found two scrollbars to manage annoying — on a
+  sideways phone the box was 275px tall inside a 297px page. With the page as
+  the only scroller, `BuildTab` takes App's `scrollRef`: opening a chord
+  scrolls up to the editor if you were further down (on a phone the editor
+  replaces the list, so the old position landed part-way down the form), and
+  going back to the list on a phone returns to where you were in it.
+
   **The shape is entered by tapping the diagram** —
   `components/EditableFretboard.jsx`. It replaced six rows of sixteen fret
   buttons, which worked but pushed the live preview off the top of a phone
